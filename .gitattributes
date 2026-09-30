@@ -1,0 +1,5 @@
+# Normalize line endings so the fixture suite and its expectations stay
+# byte-stable between Windows dev, CI, and any future collaborator on macOS.
+# The TEST PLAN makes fixture status a hard pass/fail gate, so the fixtures
+# must not drift by platform.
+* text=auto eol=lf

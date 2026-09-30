@@ -1,0 +1,56 @@
+{
+  "name": "@convat/cli",
+  "version": "0.1.0",
+  "description": "Instant, zero-config component previews — even for code that isn't a project yet.",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "bin": {
+    "convat": "./dist/cli/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "lint": "tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "verify": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "esbuild": "^0.23.1",
+    "fastify": "^4.28.1",
+    "open": "^10.1.0",
+    "ts-morph": "^23.0.0",
+    "tsconfig-paths": "^4.2.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "license": "MIT"
+}

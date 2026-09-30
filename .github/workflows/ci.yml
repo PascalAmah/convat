@@ -1,0 +1,51 @@
+name: CI
+
+# Gates from Test Plan v1.0:
+#   §5  fixture status accuracy is a hard pass/fail merge gate (100% of fixtures
+#       must resolve to their documented FULL/PARTIAL/FAILED status)
+#   §4  per-module unit assertions
+#   §6  exit codes / stdout contract / no-outbound-network (from CONV-201+)
+#   §7  benchmark harness (CONV-113B) reports once wired
+#
+# windows-latest is in the matrix from day one: Windows is the primary dev
+# machine, so path handling must never be a "discovered at CONV-404" problem.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Use Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (src + tests)
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
