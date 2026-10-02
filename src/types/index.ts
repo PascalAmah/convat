@@ -38,7 +38,6 @@ export type PropCategory = "primitive" | "enum" | "array" | "complex";
 
 export interface PropDescriptor {
   name: string;
-  /** raw type string, e.g. "string | undefined" */
   tsType: string;
   category: PropCategory;
   required: boolean;
@@ -47,7 +46,6 @@ export interface PropDescriptor {
 
 export interface RawImport {
   path: string;
-  /** does this path resolve to a real file on disk? */
   resolvesToFile: boolean;
   importedNames: string[];
 }
@@ -58,7 +56,6 @@ export interface ComponentManifest {
   componentName: string;
   exportType: ExportType;
   props: PropDescriptor[];
-  /** every import statement, resolved or not */
   imports: RawImport[];
   /** raw hook call names found in the component body, e.g. ["useContext", "useSelector"] */
   hookCalls: string[];
@@ -93,7 +90,6 @@ export type RuntimeName = "react" | "react-dom" | "react/jsx-runtime";
 
 export interface RuntimeRequirement {
   name: RuntimeName;
-  /** always true — see bundler §3.7: React must never be bundled into component code */
   mustBeExternalized: true;
 }
 
@@ -182,7 +178,7 @@ export class NoComponentFoundError extends Error {
     super(
       filePath
         ? `No exported React component found in ${filePath}.`
-        : "No exported React component found in the provided input."
+        : "No exported React component found in the provided input.",
     );
     this.name = "NoComponentFoundError";
   }
@@ -193,7 +189,7 @@ export class BundleError extends Error {
   constructor(
     message: string,
     public readonly file?: string,
-    public readonly line?: number
+    public readonly line?: number,
   ) {
     super(message);
     this.name = "BundleError";
@@ -202,7 +198,10 @@ export class BundleError extends Error {
 
 export class RuntimeErrorReport extends Error {
   readonly code = "RUNTIME_ERROR" as const;
-  constructor(message: string, public readonly stack2?: string) {
+  constructor(
+    message: string,
+    public readonly stack2?: string,
+  ) {
     super(message);
     this.name = "RuntimeErrorReport";
   }
