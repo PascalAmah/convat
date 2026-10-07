@@ -1,14 +1,19 @@
 {
+  "//": [
+    "Default project — used by the editor and by `pnpm typecheck` / `pnpm lint`.",
+    "Covers src + tests + vitest.config.ts and never emits, so no TS file in this repo can be",
+    "silently unchecked. Emitted output comes from tsconfig.build.json, which extends this one",
+    "and narrows back to src/.",
+    "`types` is pinned explicitly: automatic @types discovery is exactly what breaks in editors",
+    "for files outside `include`, producing 'Do you need to install type definitions for node?'",
+    "even though @types/node is installed as a devDependency."
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
@@ -17,8 +22,10 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "noEmit": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "fixtures", "tests"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "fixtures"]
 }
+

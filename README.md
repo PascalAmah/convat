@@ -46,14 +46,21 @@ full mapping.
 
 ```bash
 pnpm install
-pnpm run typecheck   # tsc across src + tests (tsconfig.test.json)
+pnpm run typecheck   # tsc across src + tests (tsconfig.json, noEmit)
 pnpm test            # vitest run
-pnpm run build       # compile to dist/
+pnpm run build       # tsc → dist/ (tsconfig.build.json)
 pnpm verify          # typecheck + test + build in one shot
 ```
 
 Package manager is **pnpm** (pinned via `packageManager` in `package.json`); `pnpm-lock.yaml` is the
-only lockfile. `@types/node`-style type failures on a fresh clone mean the install did not finish —
+only lockfile.
+
+> **If your editor shows *"Do you need to install type definitions for node?"*, it is not reading
+> this repo's `tsconfig.json`.** The types are installed — do **not** run `npm i --save-dev @types/node`
+> (it is already a devDependency, and this package uses pnpm; an npm install would clobber the pnpm
+> layout). `tsconfig.json` covers `src/**`, `tests/**` and `vitest.config.ts` with
+> `types: ["node"]` pinned, so every file above must resolve. If it still does not, the file you are
+> looking at is outside `include` or is a stale buffer for a deleted temp file.
 run `pnpm install` before reading anything into a red typecheck.
 
 ## Reference docs

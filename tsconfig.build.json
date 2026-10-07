@@ -1,0 +1,19 @@
+{
+  "//": [
+    "Emit config — the ONLY config that writes files. tsconfig.json covers src +",
+    "tests for typechecking and the editor (noEmit), so `tests/` can never be",
+    "silently unchecked again; this one narrows back to src/ and roots at src/ so",
+    "dist/ layout and the `bin` entry point stay correct."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "fixtures", "tests"]
+}
