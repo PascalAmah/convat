@@ -16,7 +16,8 @@ pipeline should run against this exact set (CONV-113) before merging.
 | `05-missing-imports.tsx` | Same shape as 04, imports invalidated | `PARTIAL` |
 | `06-context.tsx` | `useContext` consumer | `PARTIAL` |
 | `07-redux.tsx` | `useSelector`-style consumer. **Secondary React-runtime regression guard.** | `PARTIAL` |
-| `08-styling.tsx` | Custom CSS/Sass import | `PARTIAL` |
+| `08-styling.tsx` | Custom CSS/Sass import that **resolves**. Both branches of EHS §3.4 are covered: a resolved style import means the styling approach *was* determined, so the compatibility baseline applies and there is **no** downgrade (errata D4-A). | `FULL` |
+| `08b-styling-unresolved.tsx` | Style import pointing at a **missing** file — styling "could not be determined at all", the one styling case that contributes to PARTIAL (EHS §3.4, errata D4-A). | `PARTIAL` |
 | `09-env-vars.tsx` | `process.env` usage (RESOLVED severity — does not affect status) | `FULL` |
 | `10-ai-generated.tsx` | Representative "pasted from AI chat" component — mixed unresolved kinds at once | `PARTIAL` |
 
