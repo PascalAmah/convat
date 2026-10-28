@@ -1,18 +1,12 @@
 /**
  * Shared type contracts for the Convat pipeline.
  *
- * These types are the authoritative source for every data shape passed between
- * pipeline modules (TDD v1.0 §3). No module should redefine or duplicate these
- * shapes locally — import from here so the pipeline's contracts stay in one place.
- *
- * Pipeline order (TDD v1.0 §2):
- *   resolver -> ast-extractor -> capability-engine -> prop-mocker
- *            -> dependency-classifier -> dependency-stubber -> bundler
- *            -> shell-generator -> server
+ * Single source of truth for every shape passed between modules. Do not
+ * redefine these locally.
  */
 
 // ─────────────────────────────────────────────────────────────────────────
-// resolver (TDD §3.1)
+// resolver
 // ─────────────────────────────────────────────────────────────────────────
 
 export type ConvatMode = "in-project" | "zero-repo";
@@ -31,7 +25,7 @@ export interface ResolvedTarget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// ast-extractor (TDD §3.2)
+// ast-extractor
 // ─────────────────────────────────────────────────────────────────────────
 
 export type PropCategory = "primitive" | "enum" | "array" | "complex";
@@ -57,12 +51,12 @@ export interface ComponentManifest {
   exportType: ExportType;
   props: PropDescriptor[];
   imports: RawImport[];
-  /** raw hook call names found in the component body, e.g. ["useContext", "useSelector"] */
+  /** names of hooks called in the component body, e.g. ["useContext", "useSelector"] */
   hookCalls: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// capability-engine (TDD §3.3)
+// capability-engine
 // ─────────────────────────────────────────────────────────────────────────
 
 export type CapabilityStatus = "FULL" | "PARTIAL" | "FAILED";
@@ -103,17 +97,17 @@ export interface CapabilityReport {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// prop-mocker (TDD §3.4)
+// prop-mocker
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface MockedProps {
   values: Record<string, unknown>;
-  /** props that couldn't be typed cleanly -> raw JSON editor in the sidebar */
+  /** props that couldn't be typed cleanly; shown as raw JSON in the sidebar */
   fallbackFields: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// dependency-classifier (TDD §3.5)
+// dependency-classifier
 // ─────────────────────────────────────────────────────────────────────────
 
 export type DependencyKind =
@@ -130,12 +124,14 @@ export interface DependencyClassification {
   importPath: string;
   kind: DependencyKind;
   confidence: ConfidenceLevel;
-  /** short human-readable reason, e.g. "imported name starts with 'use', called as a function" */
+  /** names imported from this path, carried from RawImport (errata D5) */
+  importedNames: string[];
+  /** short, human-readable reason, e.g. "name starts with 'use' and is called like a function" */
   evidence: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// dependency-stubber (TDD §3.6)
+// dependency-stubber
 // ─────────────────────────────────────────────────────────────────────────
 
 export type MockStrategy =
@@ -147,6 +143,8 @@ export type MockStrategy =
 
 export interface StubContract {
   importPath: string;
+  /** carried from DependencyClassification so the panel can name the kind (errata D13) */
+  kind: DependencyKind;
   exportNames: string[];
   mockStrategy: MockStrategy;
   confidence: ConfidenceLevel;
@@ -169,7 +167,7 @@ export interface StubManifest {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Error & status taxonomy (TDD §4)
+// Error & status taxonomy
 // ─────────────────────────────────────────────────────────────────────────
 
 export class NoComponentFoundError extends Error {
@@ -215,7 +213,7 @@ export class PortInUseError extends Error {
   }
 }
 
-/** Convenience union for typed pipeline failures (TDD §4 table). */
+/** Union of all typed pipeline failures. */
 export type PipelineError =
   | NoComponentFoundError
   | BundleError

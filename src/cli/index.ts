@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 /**
- * CLI entry point — CLI Interface Spec v1.0
+ * CLI entry point.
  *
- * Responsibility: parse the command grammar (file / stdin / --diff target),
- * wire flags, and drive the pipeline end to end.
- *
- * Ticket: CONV-201 (scaffold), CONV-202 (flags), CONV-203 (--help/--version),
- *         CONV-204 (status output), CONV-207 (stdin), CONV-208 (stdout/stderr contract)
- * Status: not yet implemented — see src/resolver for the first real module (CONV-102)
+ * Thin wrapper: `run` owns parsing, pipeline execution and exit codes so it can
+ * be tested without spawning a process.
  */
 
-console.error("convat CLI: not yet implemented. See Task Breakdown CONV-201 onward.");
-process.exit(1);
+import { run } from "./run.js";
+
+run(process.argv.slice(2))
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error: unknown) => {
+    const message =
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });

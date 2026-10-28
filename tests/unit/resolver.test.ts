@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   resolveTarget,
   TargetNotFoundError,
+  TargetUnreadableError,
 } from "../../src/resolver/index.js";
 
 describe("resolver", () => {
@@ -108,6 +109,35 @@ describe("resolver", () => {
     expect(() => resolveTarget({ target: missingPath })).toThrow(
       TargetNotFoundError
     );
+  });
+
+  it("throws TargetUnreadableError for a directory target (usage error, not EISDIR)", () => {
+    const directory = join(tmpRoot, "components");
+    mkdirSync(directory);
+
+    expect(() => resolveTarget({ target: directory })).toThrow(
+      TargetUnreadableError
+    );
+  });
+
+  it("throws TargetUnreadableError when stdin cannot be read", () => {
+    const brokenStdin = () => {
+      throw new TargetUnreadableError("<stdin>", "EAGAIN — resource unavailable");
+    };
+
+    expect(() =>
+      resolveTarget({ target: "-", readStdin: brokenStdin })
+    ).toThrow(TargetUnreadableError);
+  });
+
+  it("wraps an unknown stdin read failure as TargetUnreadableError", () => {
+    const brokenStdin = () => {
+      throw new Error("pipe closed");
+    };
+
+    expect(() =>
+      resolveTarget({ target: "-", readStdin: brokenStdin })
+    ).toThrow(TargetUnreadableError);
   });
 
   it("resolves relative paths against the provided cwd", () => {

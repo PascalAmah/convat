@@ -267,11 +267,11 @@ describe("ast-extractor — imports", () => {
       "./support/Avatar",
       "./support/Badge",
     ]);
-    // `react` is not installed in this repo, so it is honestly unresolved here.
-    // Deciding that externalization satisfies it is capability-engine's job
-    // (errata D2) — this module reports the filesystem truth and nothing more.
+    // `react` is now a dependency of this repo (D1), so an in-project fixture
+    // sees it as resolved. Externalization is still capability-engine's job
+    // (errata D2); this module only reports the filesystem truth.
     expect(manifest.imports.map((entry) => entry.resolvesToFile)).toEqual([
-      false,
+      true,
       true,
       true,
     ]);

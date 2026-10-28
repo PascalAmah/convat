@@ -1,32 +1,14 @@
 /**
- * ast-extractor — TDD v1.0 §3.2 / Task Breakdown CONV-103 + CONV-104
+ * ast-extractor (CONV-103 + CONV-104)
  *
- * Responsibility: find the exported component, extract its prop contract, and
- * enumerate every import statement — resolved or not — plus the raw hook calls
- * found in the component body.
+ * Finds the exported component and returns its props, imports and hook calls.
+ * Parses `ResolvedTarget.code` in memory and never re-reads the file.
  *
- * This module deliberately does NOT decide what to do about an unresolved
- * import; that decision belongs to `capability-engine` (TDD §3.3). Here an
- * import is only *described*, and `RawImport.resolvesToFile` records whether it
- * points at something real. Consequence worth knowing: for a zero-repo target
- * nothing is installed, so `react` is reported as unresolved and it is
- * `capability-engine` that treats runtime imports as satisfied by
- * externalization (errata D2) rather than stubbing React.
- *
- * Parsing is in-memory from `ResolvedTarget.code`, never by re-reading the file:
- * stdin targets have no file at all, and re-reading would let the analyzed
- * source drift from the source we were handed.
- *
- * Deliberate v1 scope (extend only with a ticket):
- *   - Prop types resolve against declarations in the SAME file only. A props
- *     interface imported from elsewhere yields no props (see errata D9).
- *   - Top-level declarations only; a component nested in another function is not
- *     detected.
- *   - `memo(...)` / `forwardRef(...)` / `connect(...)` default exports are not
- *     unwrapped, so their inner function is not seen as a component.
- *   - Parse failures surface as `NoComponentFoundError` (there is no component to
- *     extract). Bundle-level failures belong to the bundler per the TDD §4
- *     taxonomy — this module must never raise `BundleError`.
+ * v1 limits:
+ *   - Prop types resolve only within the same file.
+ *   - Only top-level declarations are considered.
+ *   - `memo` / `forwardRef` / `connect` wrappers are not unwrapped.
+ *   - Parse failures surface as `NoComponentFoundError`, never `BundleError`.
  */
 
 import { statSync } from "node:fs";
@@ -73,7 +55,7 @@ import type {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Types that mock cleanly from their name alone (TDD §3.4 mapping table). */
+/** Types that can be mocked from their name alone. */
 const PRIMITIVE_KEYWORD_KINDS = new Set<SyntaxKind>([
   SyntaxKind.StringKeyword,
   SyntaxKind.NumberKeyword,
@@ -81,10 +63,7 @@ const PRIMITIVE_KEYWORD_KINDS = new Set<SyntaxKind>([
   SyntaxKind.BigIntKeyword,
 ]);
 
-/**
- * `React.FC<Props>`-style annotations: the props contract lives in the type
- * argument, not in the function's first parameter.
- */
+/** `React.FC<Props>`-style annotations: props live in the type argument. */
 const FUNCTION_COMPONENT_NAMES = new Set<string>([
   "FC",
   "React.FC",
@@ -94,13 +73,12 @@ const FUNCTION_COMPONENT_NAMES = new Set<string>([
   "React.VFC",
 ]);
 
-/** Union members that mean "optional" rather than "part of the value". */
+/** Union members that mean "optional", not part of the value. */
 const NULLISH_TEXT = new Set<string>(["undefined", "null"]);
 
 /**
- * Extensions probed when a specifier does not hit a file exactly. Style and
- * asset extensions are included on purpose: whether `./x.module.scss` resolves
- * is a question `capability-engine` needs answered (errata D4).
+ * Extensions to probe when a specifier has none. Style and asset extensions are
+ * included so capability-engine can tell whether a style import resolves.
  */
 const PROBE_EXTENSIONS: readonly string[] = [
   ".tsx",
@@ -122,7 +100,7 @@ const PROBE_EXTENSIONS: readonly string[] = [
   ".webp",
 ];
 
-/** The single exported function of this module (TDD §3.2). */
+/** The one exported function of this module. */
 export function extractComponent(target: ResolvedTarget): ComponentManifest {
   const source = createSourceFile(target);
   const candidate = findComponent(source);
@@ -145,29 +123,15 @@ export function extractComponent(target: ResolvedTarget): ComponentManifest {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * One `Project` for the whole process.
- *
- * A Project per call measured **2–4s per call** in the test suite — it stands up
- * a LanguageService and loads library definitions — which by itself would blow
- * PRD §3's <2s end-to-end budget. This shared Project with `noLib` measures
- * **~90ms cold and ~5–8ms per call** afterwards (benchmarked, not guessed).
- *
- * `noLib` is safe and load-bearing for that speed: this module only ever
- * *parses*. It never asks the language service to resolve or type-check
- * anything, so the standard library is never consulted.
- *
- * Reuse is safe because nothing here depends on project-wide state: prop types
- * resolve against declarations in the same file only, and import resolution uses
- * the target's real path rather than the project's view of it. `overwrite: true`
- * keeps same-named targets from colliding, and each call reads only the code it
- * was handed.
+ * One shared `Project` for the process. Creating one per call took 2–4s; this
+ * shared, `noLib` instance costs ~90ms cold and ~5–8ms per call after that.
+ * `noLib` is safe because this module only parses and never type-checks.
  */
 let sharedProject: Project | undefined;
 
 function getProject(): Project {
   sharedProject ??= new Project({
-    // Never consult the user's tsconfig: the pipeline analyzes the code it was
-    // handed, in isolation. That is the product premise.
+    // Never look at the user's tsconfig: we analyze the code we were handed, in isolation.
     skipAddingFilesFromTsConfig: true,
     compilerOptions: {
       jsx: ts.JsxEmit.Preserve,
@@ -188,10 +152,8 @@ function createSourceFile(target: ResolvedTarget): SourceFile {
 }
 
 /**
- * JSX only parses when the file name says so, so a stdin target is named `.tsx`.
- * A real `.ts` target keeps `.ts` — a plain utility file genuinely has no JSX,
- * and pretending otherwise would parse `<T>` generics as JSX elements and throw
- * away the clearest evidence that "no component here" is the right verdict.
+ * JSX only parses when the file name allows it, so stdin gets `.tsx`. A real
+ * `.ts` target keeps `.ts` to avoid reading `<T>` generics as JSX.
  */
 function sourceFileName(target: ResolvedTarget): string {
   if (!target.filePath) return "convat-stdin.tsx";
@@ -213,13 +175,8 @@ interface ComponentCandidate {
 }
 
 /**
- * Exported declarations win over unexported ones, default export wins over
- * named, and among equals the first in source order wins — so the verdict for a
- * given file is stable rather than dependent on iteration order.
- *
- * A JSX-returning body is deliberately NOT required: a component that returns a
- * string, a ternary, or another function's result is still the component the
- * user pointed us at.
+ * Picks the best candidate: exported before unexported, default before named,
+ * then source order. Returning JSX is not required.
  */
 function findComponent(source: SourceFile): ComponentCandidate | undefined {
   const candidates: ComponentCandidate[] = [];
@@ -257,8 +214,7 @@ function collectFunction(
   const name = fn.getName() ?? "";
   const exported = exportTypeOf(fn);
 
-  // An anonymous `export default function () {}` is assumed to be a component;
-  // an unexported anonymous function cannot be reached by the user at all.
+  // Anonymous functions only count when default-exported.
   if (!isComponentName(name) && exported !== "default") return;
 
   candidates.push({
@@ -363,13 +319,9 @@ function isComponentName(name: string): boolean {
 }
 
 /**
- * Export type of a top-level statement, or `undefined` when it isn't exported.
- *
- * Uses ts-morph's `isDefaultExport()` / `isExported()` rather than scanning
- * `getChildren()`: modifiers do NOT appear as direct children — `export default`
- * sits inside the leading `SyntaxList` (verified with a probe) — so a structural
- * scan silently reports every default export as unexported, which would make
- * every `export default function Foo()` fixture look like a named export.
+ * Export type of a top-level statement, or `undefined` when not exported. Uses
+ * ts-morph's helpers because `export default` sits inside the leading
+ * `SyntaxList`, not among direct children.
  */
 function exportTypeOf(
   statement: FunctionDeclaration | ClassDeclaration | VariableStatement
@@ -380,9 +332,8 @@ function exportTypeOf(
 }
 
 /**
- * The props type of a component function: an `FC<Props>` annotation on the
- * variable or the return type, else the first parameter's own annotation.
- * `undefined` means "this component declares no props" — never a guess.
+ * Props type from an `FC<Props>` annotation, else the first parameter.
+ * `undefined` means the component declares no props.
  */
 function functionPropsType(
   fn: FunctionDeclaration | ArrowFunction | FunctionExpression,
@@ -436,11 +387,8 @@ function containsJsx(node: Node): boolean {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Resolves a props type annotation into descriptors.
- *
- * Type declarations resolve against THIS FILE only (module header), and
- * recursion is guarded by `seen` so a self-referential or mutually recursive
- * props type terminates instead of hanging the pipeline.
+ * Turns a props type into descriptors. Declarations resolve only within this
+ * file; `seen` stops recursive types from looping.
  */
 function propsFromTypeNode(
   typeNode: TypeNode | undefined,
@@ -504,8 +452,6 @@ function descriptorsFromDeclaration(
   const aliased = (declaration as TypeAliasDeclaration).getTypeNode();
   if (!aliased) return [];
 
-  // `type Props = { ... }` reads directly; a union, intersection or further
-  // reference goes back through the resolver.
   if (aliased.getKind() === SyntaxKind.TypeLiteral) {
     return descriptorsFromMembers((aliased as TypeLiteralNode).getMembers(), source, seen);
   }
@@ -551,9 +497,8 @@ function withSeen(seen: ReadonlySet<string>, name: string): ReadonlySet<string> 
 }
 
 /**
- * Descriptors for the members of a type literal. Method signatures are `complex`
- * on purpose: a method cannot be auto-mocked safely, so it belongs in the raw
- * JSON editor rather than behind a guessed value (Error Handling Spec §3.1).
+ * Descriptors for a type literal's members. Methods are `complex` because they
+ * cannot be mocked safely.
  */
 function descriptorsFromMembers(
   members: Node[],
@@ -604,7 +549,7 @@ interface PropClassification {
   enumValues?: string[];
 }
 
-/** Maps a type annotation onto the category the sidebar renders a control for. */
+/** Maps a type annotation to the category the sidebar renders. */
 function categorize(
   typeNode: TypeNode | undefined,
   source: SourceFile,
@@ -634,15 +579,13 @@ function categorize(
     return { category: "primitive" };
   }
 
-  // Tuples, function types, `typeof x`, and anything unrecognised: `complex` is
-  // the honest answer, and it routes the prop to the JSON editor.
+  // Tuples, function types, `typeof x`, and anything unrecognized.
   return { category: "complex" };
 }
 
 /**
- * A union of string literals is an enum (`"a" | "b"`); a union of primitives is
- * a primitive; a union of objects is complex. Nullish members are stripped
- * first, so `"a" | "b" | undefined` is still an enum of two.
+ * String literals -> enum; primitives -> primitive; anything else -> complex.
+ * Nullish members are dropped first.
  */
 function categorizeUnion(
   union: UnionTypeNode,
@@ -681,9 +624,7 @@ function categorizeReference(
     return arrayClassification(firstTypeArgument, source, seen);
   }
 
-  // A local alias for a primitive or an enum (`type Status = "a" | "b"`) still
-  // mocks cleanly, so look through one level of indirection. Anything else
-  // (a reference to another file's type, a generic) is complex — never a guess.
+  // Follow a local primitive/enum alias one level; anything else is complex.
   const declaration = findTypeDeclaration(source, name);
   if (
     declaration &&
@@ -701,8 +642,7 @@ function categorizeReference(
 }
 
 /**
- * `string[]` → array. `Foo[]`, `typeof bar[]`, `() => void[]` → complex: if the
- * mock generator cannot build an element, the whole prop needs the JSON editor.
+ * `string[]` -> array. Arrays of anything the mocker cannot build -> complex.
  */
 function arrayClassification(
   element: TypeNode,
@@ -742,9 +682,8 @@ function isNullishUnion(typeNode: TypeNode | undefined): boolean {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Every import statement, resolved or not (TDD §3.2). `export ... from "..."` is
- * included too: it is a real dependency of the file even though nothing is bound
- * by it, and `05-missing-imports.tsx`-style breakage can hide there.
+ * Every import, resolved or not. `export ... from` is included because it is
+ * still a real dependency.
  */
 function enumerateImports(source: SourceFile, target: ResolvedTarget): RawImport[] {
   const imports: RawImport[] = [];
@@ -790,18 +729,12 @@ function importedNamesOf(declaration: ImportDeclaration): string[] {
 }
 
 /**
- * Does this specifier point at something real? Bare specifiers are probed in the
- * *previewed project's* `node_modules` — never Convat's — because the question is
- * whether the project can satisfy the import.
- *
- * `react` therefore reports `false` for a zero-repo target (nothing installed),
- * and `capability-engine` is what decides externalization satisfies runtime
- * imports anyway (errata D2).
+ * Whether the specifier resolves. Bare specifiers are probed in the previewed
+ * project's `node_modules`, never Convat's.
  */
 function resolvesToFile(specifier: string, target: ResolvedTarget): boolean {
   if (specifier.startsWith(".")) {
-    // A stdin target has no directory to resolve against, so a relative import
-    // is unresolvable by definition — the canonical pasted-component case.
+    // Stdin has no directory to resolve against.
     if (!target.filePath) return false;
     return probePath(join(dirname(target.filePath), specifier));
   }
@@ -865,16 +798,9 @@ function isDirectory(path: string): boolean {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Raw hook call names found in the component body, in source order and
- * deduplicated.
- *
- * This is a *raw signal*: classification into `context` / `redux-like` provider
- * requirements belongs to `capability-engine` (TDD §3.2's note on `hookCalls`).
- *
- * `useContext(ThemeContext)` deliberately keeps its argument, because the context
- * name is what the coverage panel shows the user ("1 provider mocked
- * (ThemeContext)") and what lets a provider be matched to the hook needing it
- * (errata D9). Other hooks are captured by name only.
+ * Hook call names in the component body, in source order and deduplicated.
+ * `useContext(ThemeContext)` keeps its argument so the panel can name the
+ * provider; other hooks are captured by name only.
  */
 function extractHookCalls(body: Node): string[] {
   const hooks: string[] = [];

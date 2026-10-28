@@ -1,17 +1,12 @@
 /**
- * resolver — TDD v1.0 §3.1 / Task Breakdown CONV-102
+ * resolver (CONV-102)
  *
- * Responsibility: determine what kind of target this is before anything else
- * runs. Given a raw CLI argument (file path or stdin), this module produces
- * the single `mode` flag (`in-project` | `zero-repo`) that every downstream
- * module reads from — no other module re-derives this decision independently.
- *
- * Mode is derived by walking up from the target file looking for the nearest
- * package.json. Found -> "in-project". Not found, or input came from stdin
- * -> "zero-repo".
+ * Resolves the CLI target (file path or stdin) into a `ResolvedTarget` and
+ * decides the mode. Mode is "in-project" when a package.json is found walking
+ * up from the file, otherwise "zero-repo"; stdin is always "zero-repo".
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, resolve as resolvePath } from "node:path";
 
 import type { ResolvedTarget } from "../types/index.js";
@@ -34,32 +29,54 @@ export class AmbiguousTargetError extends Error {
 }
 
 /**
- * Reads all of stdin synchronously as UTF-8 text.
- * Used only when the target argument is the literal "-".
+ * A target exists but cannot be read: a directory, a permission failure, or a
+ * broken stdin pipe. This is a usage error (exit 1), never a missing-component
+ * error (exit 2) — the pipeline never saw any code to look for a component in.
+ */
+export class TargetUnreadableError extends Error {
+  readonly code = "TARGET_UNREADABLE" as const;
+  constructor(
+    public readonly target: string,
+    public readonly reason: string
+  ) {
+    super(`Convat could not read ${target}: ${reason}`);
+    this.name = "TargetUnreadableError";
+  }
+}
+
+function describeFailure(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code ? `${code} — ${error.message}` : error.message;
+  }
+  return String(error);
+}
+
+/**
+ * Reads all of stdin as UTF-8. This is the default `readStdin`; tests inject a
+ * fake reader instead of blocking on fd 0.
  *
- * Exposed as the default `readStdin` dependency in `ResolveOptions` rather
- * than called directly, so tests can inject a fake reader instead of
- * touching real fd 0 (which would otherwise block waiting for real input).
+ * A failed read is surfaced as `TargetUnreadableError` rather than being
+ * swallowed into an empty string, which would masquerade as "no component
+ * found" (exit 2) instead of the usage error it is (exit 1).
  */
 function readStdinSync(): string {
   try {
     // fd 0 is stdin. This blocks until EOF, matching `cat file | convat -`.
     return readFileSync(0, "utf-8");
-  } catch {
-    return "";
+  } catch (error) {
+    throw new TargetUnreadableError("<stdin>", describeFailure(error));
   }
 }
 
 /**
- * Walks up from `startDir` looking for the nearest package.json.
- * Returns the directory containing it, or null if none is found before
- * reaching the filesystem root.
+ * Walks up from `startDir` to the nearest package.json, returning its directory
+ * or null at the filesystem root.
  */
 function findProjectRoot(startDir: string): string | null {
   let current = startDir;
 
-  // Cap the walk so a pathological filesystem (e.g. a symlink loop) can't
-  // hang resolution indefinitely.
+  // Cap the walk so a broken filesystem (like a symlink loop) can't hang forever.
   const MAX_HOPS = 100;
 
   for (let i = 0; i < MAX_HOPS; i++) {
@@ -89,29 +106,20 @@ function findTsconfig(projectRoot: string): string | null {
 }
 
 export interface ResolveOptions {
-  /**
-   * Raw CLI target argument: an absolute or relative file path, or the
-   * literal string "-" for stdin (CLI Interface Spec §2).
-   */
+  /** The raw CLI target: an absolute or relative file path, or "-" for stdin. */
   target: string;
   /** Working directory to resolve relative paths against. Defaults to process.cwd(). */
   cwd?: string;
   /**
-   * Stdin reader override, used only when target === "-". Defaults to a real
-   * synchronous read of fd 0. Tests should inject a fake reader here rather
-   * than mocking node:fs, to avoid touching a real blocking stdin read.
+   * Stdin reader override, used only when target === "-". Defaults to reading
+   * fd 0 for real. Tests can inject a fake reader here.
    */
   readStdin?: () => string;
 }
 
 /**
- * Resolves a raw CLI target into a `ResolvedTarget`, determining mode
- * (in-project vs zero-repo) along the way.
- *
- * Throws `TargetNotFoundError` if a file target does not exist on disk —
- * this is a usage error (CLI Interface Spec §8, exit code 1), not something
- * the pipeline should attempt to gracefully degrade around, since there is
- * no code at all to analyze.
+ * Turns a raw CLI target into a `ResolvedTarget`. Throws `TargetNotFoundError`
+ * when a file target does not exist (a usage error, exit 1).
  */
 export function resolveTarget(options: ResolveOptions): ResolvedTarget {
   const cwd = options.cwd ?? process.cwd();
@@ -119,7 +127,15 @@ export function resolveTarget(options: ResolveOptions): ResolvedTarget {
 
   if (rawTarget === "-") {
     const readStdin = options.readStdin ?? readStdinSync;
-    const code = readStdin();
+    let code: string;
+    try {
+      code = readStdin();
+    } catch (error) {
+      if (error instanceof TargetUnreadableError) {
+        throw error;
+      }
+      throw new TargetUnreadableError("<stdin>", describeFailure(error));
+    }
     return {
       mode: "zero-repo",
       source: "stdin",
@@ -136,7 +152,22 @@ export function resolveTarget(options: ResolveOptions): ResolvedTarget {
     throw new TargetNotFoundError(filePath);
   }
 
-  const code = readFileSync(filePath, "utf-8");
+  let isDirectory = false;
+  try {
+    isDirectory = statSync(filePath).isDirectory();
+  } catch (error) {
+    throw new TargetUnreadableError(filePath, describeFailure(error));
+  }
+  if (isDirectory) {
+    throw new TargetUnreadableError(filePath, "it is a directory, not a file");
+  }
+
+  let code: string;
+  try {
+    code = readFileSync(filePath, "utf-8");
+  } catch (error) {
+    throw new TargetUnreadableError(filePath, describeFailure(error));
+  }
   const projectRoot = findProjectRoot(dirname(filePath));
 
   if (projectRoot === null) {
