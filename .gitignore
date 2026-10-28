@@ -1,8 +1,34 @@
+# Dependencies (matches at any depth, so landing/node_modules is covered too)
 node_modules/
+
+# Build output — tsc (dist/), Vite (landing/dist/), incremental build info
 dist/
-*.log
-.DS_Store
+*.tsbuildinfo
+
+# Vite / bundler caches
+.vite/
+.cache/
+
+# Packed npm artifacts (npm pack)
+*.tgz
+
+# Test output
 coverage/
+
+# Logs
+*.log
+
+# Local environment files — never commit real values
+.env
+.env.*
+!.env.example
+!.env.template
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
 
 # Confidential & proprietary spec set — keep local, never publish.
 docs/

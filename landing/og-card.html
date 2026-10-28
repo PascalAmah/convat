@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Convat OG card</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { width: 1200px; height: 630px; }
+      body {
+        position: relative;
+        overflow: hidden;
+        background: #07080a;
+        color: #f7f5ee;
+        font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 64px 72px;
+      }
+      .grid {
+        position: absolute; inset: 0;
+        background-image:
+          linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+        background-size: 72px 72px;
+        mask-image: radial-gradient(ellipse 80% 90% at 50% 0%, black 10%, transparent 82%);
+      }
+      .glow {
+        position: absolute; inset: 0;
+        background:
+          radial-gradient(ellipse 55% 55% at 78% 8%, rgba(214,255,98,.16), transparent 70%),
+          radial-gradient(ellipse 45% 45% at 8% 92%, rgba(73,217,155,.10), transparent 72%);
+      }
+      .top, .bottom { position: relative; display: flex; align-items: center; justify-content: space-between; }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .wordmark { font-size: 30px; font-weight: 650; letter-spacing: -0.03em; }
+      .tag {
+        border: 1px solid rgba(214,255,98,.22);
+        background: rgba(214,255,98,.08);
+        color: #d6ff62;
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 13px;
+        letter-spacing: .08em;
+        padding: 8px 14px;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+      .middle { position: relative; }
+      h1 {
+        font-size: 78px;
+        line-height: .98;
+        letter-spacing: -0.05em;
+        font-weight: 600;
+        max-width: 960px;
+      }
+      h1 .muted { color: #777a76; }
+      h1 .lime {
+        background: linear-gradient(100deg, #e6ff9a, #b8e847 58%, #7ee7b4);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      p.sub {
+        margin-top: 26px;
+        max-width: 780px;
+        font-size: 25px;
+        line-height: 1.45;
+        color: #b9b8b1;
+      }
+      .bottom {
+        font-family: Consolas, ui-monospace, monospace;
+        font-size: 15px;
+        letter-spacing: .06em;
+        color: #777a76;
+      }
+      .chips { display: flex; gap: 10px; }
+      .chip {
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(255,255,255,.03);
+        border-radius: 8px;
+        padding: 7px 11px;
+        font-size: 13px;
+        color: #d8d6ce;
+      }
+      .dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #49d99b; margin-right: 8px; box-shadow: 0 0 10px #49d99b; }
+    </style>
+  </head>
+  <body>
+    <div class="grid"></div>
+    <div class="glow"></div>
+
+    <div class="top">
+      <div class="brand">
+        <svg width="52" height="52" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="9" fill="#0B0D11" />
+          <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" stroke="#D6FF62" stroke-opacity="0.24" />
+          <path d="M13.5 9H11.25A2.25 2.25 0 0 0 9 11.25v9.5A2.25 2.25 0 0 0 11.25 23h2.25" stroke="#D6FF62" stroke-width="2" stroke-linecap="round" />
+          <path d="M18.5 9h2.25A2.25 2.25 0 0 1 23 11.25v9.5A2.25 2.25 0 0 1 20.75 23H18.5" stroke="#D6FF62" stroke-width="2" stroke-linecap="round" />
+          <circle cx="16" cy="16" r="2.25" fill="#D6FF62" />
+        </svg>
+        <span class="wordmark">Convat</span>
+      </div>
+      <span class="tag">v1.0.0 · local-first</span>
+    </div>
+
+    <div class="middle">
+      <h1>
+        Preview any React component.<br />
+        <span class="lime">Without the project.</span>
+      </h1>
+      <p class="sub">
+        Point it at one <span style="font-family: Consolas, monospace; color: #f7f5ee">.tsx</span> file.
+        <span class="muted"> It stubs what it cannot resolve — and tells you exactly what it faked.</span>
+      </p>
+    </div>
+
+    <div class="bottom">
+      <span><span class="dot"></span>no project · no install · no network</span>
+      <div class="chips">
+        <span class="chip">FULL</span>
+        <span class="chip">PARTIAL</span>
+        <span class="chip">FAILED</span>
+      </div>
+    </div>
+  </body>
+</html>
